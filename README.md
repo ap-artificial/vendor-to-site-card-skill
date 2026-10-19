@@ -1,6 +1,6 @@
 # Vendor Proposal → Site-Card Deck Skill
 
-Enterprise Claude Skill for Out-of-Home (OOH) media planning. Converts messy vendor proposals into billups branded site-card decks.
+Enterprise Claude Skill for Out-of-Home (OOH) media planning. Converts messy vendor proposals into company's branded site-card decks.
 
 **Built for World's Largest Independent OOH Agency**
 
