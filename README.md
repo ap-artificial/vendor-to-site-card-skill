@@ -1,8 +1,8 @@
-# Billups Vendor Proposal → Site-Card Deck Skill
+# Vendor Proposal → Site-Card Deck Skill
 
 Enterprise Claude Skill for Out-of-Home (OOH) media planning. Converts messy vendor proposals into billups branded site-card decks.
 
-**Built for billups - World's Largest Independent OOH Agency**
+**Built for World's Largest Independent OOH Agency**
 
 ### Why this is not a parsing task
 Vendor proposals have zero standard structure. One vendor uses tables, another bullets, another spreads 1 site across 4 slides. Regex breaks. This skill renders proposals to images and reads them like a human planner.
