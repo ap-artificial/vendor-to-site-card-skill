@@ -1,0 +1,44 @@
+/SKILL.md
+
+
+Vendor proposal → billups site-card deck
+Why this is a reading task, not a parsing task
+Vendor proposals have no shared structure — one vendor puts specs in a table, another in a bullet list, another spreads a site across 4 slides (hero photo, map+day/night photos, spec table, rate card) while another crams everything onto one slide. There is no regex or table-extraction script that reliably survives contact with a second vendor's deck. So don't try to write one. Instead, render the proposal to page images and read it the way a human planner would: page by page, building up one structured record per site. The only deterministic part is the last mile — dropping already-understood data into the billups template — and that's what scripts/build_deck.py is for.
+
+Workflow
+1. Get the proposal into a form you can read
+If it's a PDF: render pages to PNG with pdftoppm -png -r 150 input.pdf /tmp/pages/page (150 dpi is enough to read text and see photo/map content clearly; go to 220 if small print is blurry).
+If it's a native PPTX: either read it directly with python-pptx (text frames give you exact strings) plus extract embedded pictures via the slide's image parts, OR convert to PDF first (soffice --headless --convert-to pdf) and treat it like a PDF — whichever is faster for that file. PPTX text extraction is more precise for numbers; page images are better for judging which embedded picture is the "site photo" vs "map screenshot" vs a decorative icon/logo.
+Read the rendered pages with your Read tool, several at a time. Don't skip pages — site data (photo, map, specs, price) is often spread across 2–4 consecutive pages per site.
+2. Extract embedded images, not just text
+You need a real photo and a real map screenshot per site — placeholder or missing images make the deck look unfinished. Pull every embedded raster image out of the source file:
+
+bash
+pdfimages -list -f <first_page> -l <last_page> input.pdf   # see size per image before extracting
+pdfimages -png -f <first_page> -l <last_page> input.pdf /tmp/pages/rawimages/img
+Filter out anything tiny (under ~400px in both dimensions is almost always a logo, bullet icon, or UI chrome, not a photo or map) — pdfimages -list gives you width/height without extracting, so filter before you extract if there are a lot of images. Among the remaining candidates for a given site, open each one: a map has visible street lines, pins, and place labels; a site photo is a real street-level or aerial photo, usually with the ad unit itself visible or highlighted. Vendors commonly supply both a "day" and "night" photo per site — pick the clearer/day one unless the user says otherwise, since the template only has one photo slot.
+
+3. Build one JSON record per site
+Fields map directly onto references/site_data_schema.md — read that file for the full field list and what each one should contain. Keep the record close to what's actually printed in the proposal; if a field genuinely isn't in the source, leave it out (the template will just keep its label with no injected value) rather than inventing a number. Save the list as sites.json.
+
+Campaign-level context the deck itself doesn't need per slide (client name, campaign dates, buying currency) isn't part of this schema — that's for the media-plan-Excel skill downstream, not this deck. If the user hasn't told you the client/campaign name and it matters for the output filename, ask.
+
+4. Build the deck
+bash
+python3 scripts/build_deck.py sites.json assets/templates/billups_site_card_template_v2.pptx output.pptx
+Use billups_site_card_template_v2.pptx, not the older billups_site_card_template.pptx sitting next to it. Font is Manrope, mandatory — per billups brand guidelines (see the billups-decks skill's references/brand_guidelines.md), Manrope is the current brand typeface for any new standalone deck, and the site-card deck this skill produces counts as one. The original template file mixed three unrelated fonts across its own text runs (Arial Nova, Arimo, plain Arial — none of them actually Manrope or brand Arial) with no consistency slide to slide; _v2 is the same template with every run's font name set to Manrope, nothing else changed (same shapes, same layout, same labels). The old file is kept only because a filesystem permission quirk in this environment blocks deleting/overwriting a pre-existing asset in place — don't build from it going forward.
+
+Font is referenced by name only, not embedded in the pptx (embedding a font into OOXML by hand is high-risk surgery for what should be a routine template edit) — if the machine that opens the deck doesn't have Manrope installed, PowerPoint/Keynote/LibreOffice will silently substitute a fallback and the deck will still look/behave correctly, just not in the exact brand typeface until Manrope is installed. Manrope's 7 weight files live in the billups-decks skill's assets/fonts/manrope/ if you need to install it locally for an accurate QA render.
+
+This duplicates the template slide once per site in sites.json, rewrites the address/GPS/ landmarks/media-specs/demographics block and the price line (matching on the field's label text so it's robust to how the template happens to have split things into runs), swaps in each site's photo and map image, and drops the original template slide from the output. It leaves the billups logo, billups.com footer, and decorative pin icons untouched — those are brand-fixed, not per-site data.
+
+5. QA before handing it back
+Convert the result to PDF and render it to images (soffice --headless --convert-to pdf then pdftoppm) and actually look at every slide with your Read tool: check text didn't overflow its box, the photo and map aren't swapped, and numbers match the source proposal. Vendor proposals are often the basis for real client pricing — don't let a misread number or a mismatched photo slip through uncaught.
+
+6. Keep sites.json around
+If the user is going to want this data in the billups Media Plan Excel too (the billups-deck-to-media-plan skill), save sites.json next to the output deck. That skill can read the deck's slides directly if sites.json isn't available, but the JSON is more precise (e.g. it has the numeric price and lat/long cleanly separated, where the deck only has the formatted display strings), so keeping it saves a re-extraction pass.
+
+Reference
+references/site_data_schema.md — the per-site field list, with a short description and example value for each.
+scripts/build_deck.py — the template-filling script; run python3 scripts/build_deck.py with no args to see its usage string. It expects the template to keep the exact shape/name layout of assets/templates/billups_site_card_template_v2.pptx (TextBox 6 = city/country line, TextBox 9 = road/location line, TextBox 12 = the specs block, TextBox 17 = price line, Freeform 19 = photo, Freeform 14 = map) — if the user supplies a different billups template variant, open it in python-pptx first and confirm the shape names still match before assuming the script will work unmodified. Whatever template you end up using, keep every text run's font set to Manrope (mandatory) — see the note in step 4.
+The general pptx skill has broader PowerPoint-editing mechanics if you need something this script doesn't cover (e.g. the user wants a title/TOC slide in front of the site cards, or wants the deck merged into an existing billups Way master deck — see the billups-decks skill for that master template and brand rules).
